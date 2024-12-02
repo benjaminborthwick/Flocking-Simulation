@@ -2,14 +2,39 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class NewBehaviourScript : MonoBehaviour
+public class FishGenerator : MonoBehaviour
 {
-    [SerializeField]
     int steps = 10;
     [SerializeField]
     int seed = 2793;
     [SerializeField]
     Texture2D scaleTexture;
+
+    [SerializeField]
+    int numFish = 100;
+    [SerializeField]
+    bool useTrails = false;
+    [SerializeField]
+    int trailLength = 100;
+    [SerializeField]
+    bool useCentering = true;
+    [SerializeField]
+    float centeringWeight = 2f;
+    [SerializeField]
+    bool useMatching = true;
+    [SerializeField]
+    float matchingWeight = 1.9f;
+    [SerializeField]
+    bool useAvoidance = true;
+    [SerializeField]
+    float avoidanceWeight = 5f;
+    [SerializeField]
+    bool useWandering = true;
+    [SerializeField]
+    float wanderingWeight = 40.67f;
+    
+    [SerializeField]
+    float worldBoxSize = 35;
 
     float[][] blendConsts;
 
@@ -20,28 +45,57 @@ public class NewBehaviourScript : MonoBehaviour
     List<GameObject> rightFins;
     List<GameObject> leftFins;
     List<GameObject> tails;
+    List<Fish> fish;
 
     // Start is called before the first frame update
     void Start()
     {
         UnityEngine.Random.InitState(seed);
         initBlendConsts();
+        Fish.initConsts(centeringWeight, matchingWeight, avoidanceWeight, wanderingWeight, worldBoxSize);
 
         rightFins = new List<GameObject>();
         leftFins = new List<GameObject>();
         tails = new List<GameObject>();
+        fish = new List<Fish>();
 
-        for (int i = 0; i < 5; i++) {
-            GenerateFish(new Vector3(i * 3, 0, 0));
+        for (int i = 0; i < numFish; i++) {
+            fish.Add(new Fish(GenerateFish(new Vector3(0, 0, 0))));
         }
     }
 
     // Update is called once per frame
     void Update()
     {
+        float space = Input.GetAxis("Jump");
+
+        if (fish.Count < numFish) {
+            for (int i = fish.Count; i < numFish; i++) {
+                print("making feesh");
+                fish.Add(new Fish(GenerateFish(new Vector3(0, 0, 0))));
+            }
+        } else if (fish.Count > numFish) {
+            Debug.Log(fish.Count);
+            for (int i = numFish; i < fish.Count; i++) {
+                GameObject f = fish[numFish].getObject();
+                rightFins.Remove(f.transform.GetChild(4).gameObject);
+                leftFins.Remove(f.transform.GetChild(5).gameObject);
+                tails.Remove(f.transform.GetChild(6).gameObject);
+                Destroy(f);
+                fish[numFish].Unalive();
+                fish.RemoveAt(numFish);
+            }
+        }
+        // animations
         foreach (GameObject fin in rightFins) fin.transform.RotateAround(fin.transform.position, Vector3.up, Time.deltaTime * ((int) Mathf.Floor(Time.time) % 2 == 0 ? -40 : 40));
         foreach (GameObject fin in leftFins) fin.transform.RotateAround(fin.transform.position, Vector3.up, Time.deltaTime * ((int) Mathf.Floor(Time.time) % 2 == 0 ? 40 : -40));
         foreach (GameObject tail in tails) tail.transform.RotateAround(tail.transform.position, Vector3.up, Time.deltaTime * (((int) Mathf.Floor(Time.time) - 1) % 4 > 1 || Time.time < 1 ? -20 : 20));
+        
+        // fish movement
+        foreach (Fish f in fish) {
+            if (space == 1) f.Scatter();
+            f.Update(Time.deltaTime, useTrails, trailLength, useCentering, useMatching, useAvoidance, useWandering);
+        }
     }
 
     void initBlendConsts() {
@@ -57,7 +111,7 @@ public class NewBehaviourScript : MonoBehaviour
         }
     }
 
-    void GenerateFish(Vector3 position) {
+    GameObject GenerateFish(Vector3 position) {
         GameObject fish = new GameObject("Fish");
         Color fishColor = new Color(0.2f + 0.5f * UnityEngine.Random.value, 0.2f + 0.5f * UnityEngine.Random.value, 0.2f + 0.5f * UnityEngine.Random.value);
         fish.AddComponent<MeshFilter>();
@@ -125,6 +179,8 @@ public class NewBehaviourScript : MonoBehaviour
         tail.GetComponent<Renderer>().material.color = finColor;
         tail.GetComponent<Renderer>().material.SetFloat("_Glossiness", 0);
         tails.Add(tail);
+
+        return fish;
     }
 
     Mesh GenerateTail(int type) {
